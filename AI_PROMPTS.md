@@ -62,3 +62,20 @@ Pages
 (or Vercel) deploy config and make sure model files load from the deployed
 path.
 ```
+
+## Phase 3: 3D glasses
+
+### Prompt 5 (Claude Code)
+
+```
+Implement renderer3d.js with Three.js: full-screen renderer over the mirrored
+video, perspective camera whose FOV matches MediaPipe's canonical face model
+assumptions (start at 63 degrees vertical and make it tunable). Create a
+glassesAnchor Object3D whose matrix is set each frame from the facial
+transformation matrix (handle mirroring). Load a GLB with GLTFLoader, centre
+it,
+and apply per-model offset, rotation and scale from glasses.js. Add on-screen
+sliders (debug only) for offset x/y/z, scale and FOV so I can tune alignment
+live,
+with a button that prints the values to copy into glasses.js.
+```

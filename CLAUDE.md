@@ -86,9 +86,27 @@ from `import.meta.env.BASE_URL`, never hard-coded as `/models/...`.
 
 ## Debug controls
 
-- `D` — landmark dots + 2D tuning readout; while on, `+`/`-` scale the PNG and
-  up/down move it. Values reset on reload; copy them into `glasses.js`.
+- `D` — debug view: green landmark dots, plus the tuning panel for the mode.
+  - 2D: `+`/`-` scale the PNG, up/down move it (readout top-right).
+  - 3D: sliders for offset x/y/z, scale and FOV, a "Copy values" button, pink
+    markers at the canonical eye corners + nose bridge (they should sit on
+    the matching green dots; if not, the FOV is off), and head distance in cm.
+  - Values reset on reload; copy them into `glasses.js`.
 - `G` — next glasses design (temporary until the Phase 4 picker).
+- `M` — switch 2D / 3D mode (3D is the default).
+
+## 3D notes
+
+- The facial transformation matrix maps MediaPipe's canonical face (cm; +y
+  up, +z out of the face; eye corners at x = ±4.45, eye level y ≈ 2.6,
+  nose bridge 168 at (0, 3.27, 5.24)) into camera space. Verified on a test
+  face: canonical markers land on the 2D landmarks with FOV 63.
+- Matrix data is column-major (`Matrix4.fromArray`); renderer3d.js transposes
+  automatically if it ever arrives row-major.
+- Each model is shifted so its origin is the lens centre at the lens front,
+  then scaled to `scale3d` x 8.9 cm wide; `offset3d` places that point.
+- Headless test harness (not in repo): Chrome with
+  `--use-file-for-fake-video-capture=<face>.y4m` can drive the app with a face.
 
 ## Working rules
 

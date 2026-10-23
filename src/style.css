@@ -75,6 +75,49 @@ body {
   white-space: pre;
 }
 
+/* Debug-only 3D tuning sliders. */
+#tune3d {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: min(18rem, calc(100vw - 2rem));
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.4rem;
+  background: rgb(0 0 0 / 0.7);
+  font: 0.8rem ui-monospace, monospace;
+}
+
+#tune3d .title {
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+#tune3d label {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr 3.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.2rem 0;
+}
+
+#tune3d input {
+  width: 100%;
+}
+
+#tune3d output {
+  text-align: right;
+}
+
+#tune3d button {
+  margin-top: 0.5rem;
+  width: 100%;
+  padding: 0.35rem;
+  border: 0;
+  border-radius: 0.3rem;
+  font: inherit;
+  cursor: pointer;
+}
+
 #ui {
   position: fixed;
   bottom: 1.25rem;
