@@ -49,13 +49,46 @@ src/
   metrics.js        // FPS, inference ms, latency, CSV export
   style.css
 public/models/      // .glb files, .png glasses, face_landmarker.task
+public/wasm/        // MediaPipe WASM runtime (gitignored; copied on npm install)
+scripts/
+  copy-wasm.js      // postinstall: node_modules/@mediapipe/tasks-vision/wasm -> public/wasm
 ```
+
+## Assets
+
+- `public/models/glasses-{1,2,3}.glb` from Sketchfab (credits go in README).
+  All three: +x = wearer's left-right, +y up, front faces +z (toward a Three.js
+  camera), temple arms extend toward -z. Units differ per model (front width
+  ~2.99 / 1.08 / 1.24), so normalise scale by measured width, not a fixed factor.
+- Lens meshes are separate; their material names contain "Glass".
+- Material fixes needed when rendering (found while making the PNGs):
+  - Set frames to `side: FrontSide`; Sketchfab exports double-sided and the
+    inside of thin shells pokes through as patches (very visible on glasses-2).
+  - Raise frame roughness to ~0.3; near-mirror frames reflect RoomEnvironment's
+    light panels as hard white blocks.
+  - glasses-2 frame is exported semi-transparent (alpha 0.8); render it opaque.
+  - Lenses on glasses-2/3 are near-opaque sunglasses; lower opacity so eyes show.
+- `public/models/glasses-{1,2,3}.png`: front orthographic renders of the GLBs
+  (transparent background, lenses at 35% opacity), so 2D and 3D modes match.
 
 ## Commands
 
 - `npm run dev` — dev server
 - `npm run build` — static build into `dist/`
 - `npm run preview` — serve the build locally
+
+## Deploy
+
+GitHub Pages via `.github/workflows/deploy.yml` on every push to `main`
+(repo: mar-wan-e/virtual-glasses-project). The site lives at `/<repo>/`, so the
+workflow builds with `--base=/<repo>/`; all asset paths in code must be built
+from `import.meta.env.BASE_URL`, never hard-coded as `/models/...`.
+
+## Debug controls
+
+- `D` — landmark dots + 2D tuning readout; while on, `+`/`-` scale the PNG and
+  up/down move it. Values reset on reload; copy them into `glasses.js`.
+- `G` — next glasses design (temporary until the Phase 4 picker).
 
 ## Working rules
 

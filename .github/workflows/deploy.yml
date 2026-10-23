@@ -1,0 +1,50 @@
+# Builds the app and publishes dist/ to GitHub Pages on every push to main.
+# One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # allows a manual run from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish; skip deploys queued in between.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # npm ci also runs "postinstall", which copies the MediaPipe WASM
+      # runtime into public/wasm (it isn't committed).
+      - run: npm ci
+
+      # Pages serves the site at /<repo-name>/, so every asset path needs that
+      # prefix. Vite applies it to the bundle and to import.meta.env.BASE_URL,
+      # which tracker.js and glasses.js use for the model and image paths.
+      - run: npm run build -- --base=/${{ github.event.repository.name }}/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
