@@ -248,6 +248,12 @@ const HOOK_TUCK = 1.2;
 // far behind the hinge the bend blends in, so there's no kink at the hinge.
 const HINGE_GAP = 0.3;
 const BEND_BLEND = 1.0;
+// Hinge detection: scan back from the lenses in HINGE_STEP cm slices; the arm
+// starts at the first slice whose height is under ARM_MAX_HEIGHT cm.
+const HINGE_STEP = 0.25;
+const ARM_MAX_HEIGHT = 1.6;
+// The arm bends slightly where it meets the temple; blended over +-this (cm).
+const JOINT_BLEND = 1.0;
 const DOWN = new THREE.Vector3(0, -1, 0);
 
 const _m = new THREE.Matrix4();
@@ -258,6 +264,9 @@ const _v = new THREE.Vector3();
 const _u = new THREE.Vector3();
 const _a = new THREE.Vector3();
 const _n = new THREE.Vector3();
+const _perp = new THREE.Vector3();
+const _pa = new THREE.Vector3();
+const _pb = new THREE.Vector3();
 
 /**
  * Matrix from a mesh's own space to the glasses anchor's space (the face),
@@ -388,28 +397,34 @@ function aimArms({ fit, design }) {
     }
     const hasHook = hookAt < maxAlong - 1;
 
-    // Rest point on top of this user's ear (same maths as setOccluder's ears).
+    // The arm's path on this user's head, like a real arm: straight from the
+    // hinge to just outside the temple (where arms touch the head), then
+    // along the side of the head to the rest point on top of the ear. A
+    // single straight arm would have to angle outward to clear the temple
+    // and then float ~1 cm off the head by the ear, which shows when you
+    // look down.
     const { ear, width, z: occZ } = occluderSettings;
     const rest = new THREE.Vector3(
-      ear.x * faceRatio - EAR_REST_INSET, // |x|; the side's sign is applied below
+      side * (ear.x * faceRatio - EAR_REST_INSET),
       ear.y + earShiftY + EAR_REST_ABOVE,
       ear.z + EAR_REST_FORWARD,
     );
-    // Make the straight arm clear the temple: if a line from the hinge to the
-    // rest point would pass inside the head at the temple's depth, move the
-    // rest point outward until it doesn't.
-    const templeX = TEMPLE_L.x * width * faceRatio + TEMPLE_CLEARANCE;
     const templeZ = TEMPLE_L.z + occZ;
-    const hingeX = Math.abs(hinge.x);
-    if (hinge.z > templeZ && templeZ > rest.z) {
-      const needed = hingeX + ((templeX - hingeX) * (hinge.z - rest.z)) / (hinge.z - templeZ);
-      rest.x = Math.max(rest.x, needed);
-    }
-    rest.x *= side;
+    // Temple contact point: at the temple's depth, just outside the head; its
+    // height is on the straight line from hinge to ear. If the temple isn't
+    // between them (unusual fit), use the midpoint: effectively one segment.
+    const tz = THREE.MathUtils.clamp((hinge.z - templeZ) / (hinge.z - rest.z), 0.05, 0.95);
+    const temple = hinge.clone().lerp(rest, tz);
+    temple.x = side * Math.max(Math.abs(temple.x), TEMPLE_L.x * width * faceRatio + TEMPLE_CLEARANCE);
 
-    const to = rest.clone().sub(hinge);
-    const restDist = to.length() * design.armLength; // where the hook should start
-    const newDir = to.clone().normalize();
+    const dirA = temple.clone().sub(hinge);
+    const lenA = dirA.length();
+    dirA.normalize();
+    const dirB = rest.clone().sub(temple);
+    const lenB = dirB.length();
+    dirB.normalize();
+    const restDist = (lenA + lenB) * design.armLength; // path length to the ear: where the hook goes
+    const newDir = dirB; // direction at the ear, for the added hook
 
     // How each point's distance along the arm changes. With a built-in hook:
     // stretch only the straight part so the hook starts at the top of the ear,
@@ -435,11 +450,16 @@ function aimArms({ fit, design }) {
       restDist,
       hookStart,
       hookEnd,
-      rotation: new THREE.Quaternion().setFromUnitVectors(dir, newDir),
+      temple,
+      lenA,
+      dirA,
+      dirB,
+      rotA: new THREE.Quaternion().setFromUnitVectors(dir, dirA), // hinge -> temple
+      rotB: new THREE.Quaternion().setFromUnitVectors(dir, dirB), // temple -> ear
       // Added hook (models without one): the curve over the ear pivots where
       // it starts (TIP_LEAD before the rest point), so nothing in front of it
       // moves; points after it swing down about a horizontal axis.
-      bendAt: hinge.clone().addScaledVector(newDir, Math.max(0, restDist - TIP_LEAD)),
+      bendAt: temple.clone().addScaledVector(dirB, Math.max(0, restDist - TIP_LEAD - lenA)),
       droop: new THREE.Quaternion().setFromAxisAngle(
         newDir.clone().cross(DOWN).normalize(),
         THREE.MathUtils.degToRad(TIP_DROOP_DEG),
@@ -460,19 +480,26 @@ function aimArms({ fit, design }) {
       _v.fromArray(origPos, j).applyMatrix4(_m);
       const side = _v.x < 0 ? sides[0] : sides[1];
       const w = side && isArm(_v, Math.sign(_v.x))
-        ? THREE.MathUtils.clamp((hingeZ - _v.z) / BEND_BLEND, 0, 1)
+        ? THREE.MathUtils.clamp((hingeZs[Math.sign(_v.x)] - _v.z) / BEND_BLEND, 0, 1)
         : 0;
       if (w === 0) {
         pos.setXYZ(i, origPos[j], origPos[j + 1], origPos[j + 2]);
         if (nor && origNor) nor.setXYZ(i, origNor[j], origNor[j + 1], origNor[j + 2]);
         continue;
       }
-      // 1. Stretch along the arm's own direction only (keeps its thickness),
-      //    then rotate about the hinge toward the ear.
+      // 1. Lay the arm along its new path: split each point into its distance
+      //    along the arm (stretched by mapAlong) and its offset from the arm's
+      //    centre line (thickness, and the model's own hook). The centre line
+      //    goes hinge -> temple, then temple -> ear; the offset turns with it.
+      //    Near the temple the two are blended so the joint is a smooth curve.
       _u.copy(_v).sub(side.hinge);
       const a0 = _u.dot(side.dir); // distance along the original arm
-      const along = side.mapAlong(a0); // ... and along the new one
-      _u.addScaledVector(side.dir, along - a0).applyQuaternion(side.rotation).add(side.hinge);
+      const along = side.mapAlong(a0); // ... and along the new path
+      _perp.copy(_u).addScaledVector(side.dir, -a0); // offset from the centre line
+      _pa.copy(_perp).applyQuaternion(side.rotA).addScaledVector(side.dirA, along).add(side.hinge);
+      _pb.copy(_perp).applyQuaternion(side.rotB).addScaledVector(side.dirB, along - side.lenA).add(side.temple);
+      const joint = THREE.MathUtils.smoothstep(along, side.lenA - JOINT_BLEND, side.lenA + JOINT_BLEND);
+      _u.copy(_pa).lerp(_pb, joint);
       // 2. Models without their own hook: curve the tip down over the ear.
       const droop = side.hasHook
         ? 0
@@ -490,7 +517,7 @@ function aimArms({ fit, design }) {
       _v.lerp(_u, w).applyMatrix4(_mInv);
       pos.setXYZ(i, _v.x, _v.y, _v.z);
       if (nor && origNor) {
-        _n.fromArray(origNor, j).applyMatrix3(_nm).applyQuaternion(side.rotation);
+        _n.fromArray(origNor, j).applyMatrix3(_nm).applyQuaternion(joint > 0.5 ? side.rotB : side.rotA);
         if (droop > 0.5) _n.applyQuaternion(side.droop);
         _n.applyMatrix3(_nmInv).normalize();
         nor.setXYZ(i, _n.x, _n.y, _n.z);
