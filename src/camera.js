@@ -24,6 +24,9 @@ export async function startCamera(video) {
         facingMode: 'user', // front camera on phones; ignored on laptops
         width: { ideal: 1280 },
         height: { ideal: 720 },
+        // Ask for 30 FPS explicitly: without it, many laptop webcams pick a
+        // slower default (often 15-20 FPS), which caps the whole app.
+        frameRate: { ideal: 30 },
       },
     });
   } catch (err) {

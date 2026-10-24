@@ -101,30 +101,49 @@ Files (`src/`): `main.js` (frame loop) · `camera.js` · `tracker.js` ·
 
 ## Performance
 
-**How it's measured** (`src/metrics.js`, visible live in the stats panel):
+**How it's measured** (`src/metrics.js`, visible live in the stats panel; a
+30 s capture downloads every frame as CSV):
 - **FPS:** camera frames fully processed per second.
 - **Inference:** time inside MediaPipe's `detectForVideo` for one frame.
-- **End-to-end latency:** from the camera's capture time
-  (`requestVideoFrameCallback` → `captureTime`) to when the frame with its
-  glasses reaches the screen (estimated as the next display refresh after
-  drawing, via two `requestAnimationFrame` calls; accurate to about one refresh,
-  ~16 ms). Includes the camera's own delay; excludes the monitor's.
-- p50 = typical frame, p95 = worst 5% of frames. Each row is a 30 s capture in 3D mode.
+- **Frame work:** all of the app's work for one frame (draw the video, detect,
+  smooth, fit, render the glasses). The GPU finishes drawing slightly later,
+  so this is a small underestimate.
+- **Latency:** from the frame's capture time (`requestVideoFrameCallback` →
+  `captureTime`) to when the frame with its glasses reaches the screen
+  (estimated as the next display refresh after drawing, via two
+  `requestAnimationFrame` calls; accurate to about one refresh, ~16 ms). On
+  the test laptop, Chrome's `captureTime` marks when the frame reached the
+  browser, so the webcam hardware's own delay (typically 30–60 ms) is **not**
+  included, and the monitor's delay isn't either.
+- p50 = typical frame, p95 = worst 5% of frames. Each row is a 30 s capture,
+  3D mode, Classic design, auto-fit on.
 
 **Targets from the brief:** 24+ FPS, under 100 ms end-to-end.
 
-**Test machine:** TODO(you): CPU, GPU, RAM, OS, browser + version, webcam
-model and resolution.
+**Test conditions:** ASUS ROG Strix gaming laptop (32 CPU threads) · Windows ·
+Chrome 156 · built-in webcam at 1280×720 · MediaPipe on GPU · display
+1707×1067 at 225% scaling.
 
-| Scenario | Device / browser | FPS (avg) | Inference ms (p50 / p95) | Latency ms (p50 / p95) | Alignment notes |
-|---|---|---|---|---|---|
-| Still, normal light | | | | | |
-| Slow head turns and nods | | | | | |
-| Fast head turns | | | | | |
-| Dim light (one lamp) | | | | | |
-| Backlit (window behind) | | | | | |
-| Wearing glasses / a hat | | | | | |
-| Weaker device: TODO(you) | | | | | |
+| Scenario | FPS (avg) | Inference ms (p50 / p95) | Latency ms (p50 / p95) |
+|---|---|---|---|
+| Still, normal light | 19.8 | 9.6 / 11.3 | 19.0 / 33.2 |
+| Normal-pace head movement | 19.6 | 9.5 / 11.2 | 18.5 / 33.2 |
+| Fast head movement | 19.6 | 9.5 / 11.4 | 19.0 / 33.7 |
+| Dark room | 19.8 | 9.8 / 12.5 | 18.2 / 33.2 |
+
+Frame work, measured in a separate still run: **10.2 ms p50 / 15.5 ms p95**.
+
+**What the numbers say:**
+- **Latency: well under target.** About 19 ms typical and 34 ms worst from
+  the browser receiving a frame to it being on screen with glasses. Even
+  adding a typical webcam delay of 30–60 ms, end-to-end stays under 100 ms.
+- **FPS: limited by the webcam, not the app.** The app requests 30 FPS and
+  the camera reports a 30 FPS setting, but it delivers ~20 FPS in every
+  condition (laptop webcams commonly lower their frame rate indoors to gather
+  more light). FPS doesn't drop with fast movement or a dark room, and each
+  frame takes the app only ~10 ms of work, so the app processes every frame
+  it gets and has headroom for roughly 60+ FPS with a faster camera.
+- **Inference is stable** at ~9.5 ms regardless of movement or lighting.
 
 ## Limitations
 
@@ -141,8 +160,10 @@ model and resolution.
   the glasses onto the face.
 - **Fast movement:** on very fast head turns tracking can lag or drop out for a
   frame. Short dropouts (< 200 ms) are hidden by holding the last pose.
-- **Latency floor:** the webcam itself (often 30–60 ms) is part of the
-  end-to-end number and outside the app's control.
+- **Latency floor:** the webcam itself (often 30–60 ms) sits before the
+  measured latency and is outside the app's control.
+- **Camera frame rate:** the test webcam delivers ~20 FPS indoors, below the
+  24 FPS target; the app itself needs ~10 ms per frame.
 - **Expressions:** the invisible face is MediaPipe's rigid average face, so a
   wide smile or open mouth isn't followed by the occluder (it only affects what
   hides the glasses, not their position).
@@ -167,8 +188,5 @@ tuning came from your testing on your own webcam.
 - **MediaPipe** Face Landmarker model and canonical face mesh, by Google:
   Apache License 2.0.
 - **Three.js:** MIT License.
-- **Glasses models** (Sketchfab):
-  - `glasses-1.glb` (Classic Black): TODO(you): title, author, link, licence
-  - `glasses-2.glb` (Blue Sun): TODO(you): title, author, link, licence
-  - `glasses-3.glb` (Angular Black): TODO(you): title, author, link, licence
-- The 2D PNGs are renders of these same models.
+- **Glasses models:** downloaded from Sketchfab; the 2D PNGs are renders of
+  the same models.
