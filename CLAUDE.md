@@ -48,7 +48,7 @@ src/
   renderer2d.js     // PNG overlay fallback
   glasses.js        // catalogue: model paths, offsets, scale per design
   ui.js             // picker, mode toggle, stats panel, messages
-  metrics.js        // FPS, inference ms, latency, CSV export
+  metrics.js        // FPS, inference ms, latency p50/p95, 30 s CSV capture
   style.css
 public/models/      // .glb files, .png glasses, face_landmarker.task
 public/wasm/        // MediaPipe WASM runtime (gitignored; copied on npm install)
@@ -98,6 +98,10 @@ from `import.meta.env.BASE_URL`, never hard-coded as `/models/...`.
   - Values reset on reload; copy them into `glasses.js`.
 - `G` — next glasses design (the thumbnail picker does the same).
 - `M` — switch 2D / 3D mode (3D is the default).
+- `S` — show/hide the stats panel (FPS, inference and latency p50/p95, scenario
+  name + "Record 30 s CSV"). Latency = captureTime -> next display refresh
+  after drawing (double requestAnimationFrame). Shortcuts are ignored while
+  typing in the scenario box.
 
 ## 3D notes
 

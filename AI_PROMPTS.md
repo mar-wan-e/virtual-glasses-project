@@ -201,3 +201,26 @@ found the whole curve was hidden inside the invisible ear; it now starts just
 before the ear's top edge so the bend is visible going over the ear. It also
 added per-face ear height, measured from landmarks 234/454, so the hook lands
 on each person's ears.)
+
+## Phase 5: Metrics, docs, delivery
+
+### Prompt 15 (Claude Code)
+
+```
+where are we now compared to what they wanted us to reach. theres phase 5 left, but what else do we need
+```
+
+### Prompt 16 (Claude Code)
+
+```
+Implement metrics.js: rolling FPS, inference time per frame (performance.now
+around detectForVideo), and end-to-end latency per frame as the gap between
+the
+frame's captureTime (requestVideoFrameCallback metadata) and the time the
+rendered frame is presented. Show p50 and p95 for each in the stats panel,
+and add
+a button that runs a 30-second capture and downloads the results as CSV.
+Then draft a README with: overview, setup, architecture, tech choices and
+why,
+performance results table (leave numbers for me), limitations, AI tools used.
+```

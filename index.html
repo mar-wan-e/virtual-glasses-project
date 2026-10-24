@@ -16,7 +16,15 @@
         <canvas id="debug-canvas"></canvas>
       </div>
       <div id="message" hidden></div>
-      <div id="fps" hidden></div>
+      <!-- Stats panel (S toggles): FPS, inference and latency, 30 s CSV capture. -->
+      <div id="stats" hidden>
+        <pre id="stats-text"></pre>
+        <div id="capture">
+          <input id="scenario" type="text" value="still-normal-light"
+                 aria-label="Scenario name for the CSV" spellcheck="false" />
+          <button id="capture-btn">Record 30 s CSV</button>
+        </div>
+      </div>
       <div id="tuning" hidden></div>
       <div id="tune3d" hidden></div>
     </div>

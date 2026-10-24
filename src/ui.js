@@ -1,10 +1,12 @@
 // ui.js — on-screen controls and overlays.
-// Owns the DOM for the buttons, message box, FPS label and tuning panels;
+// Owns the DOM for the buttons, message box, stats panel and tuning panels;
 // main.js tells it what to show and passes callbacks for user actions.
 // The glasses picker shows each design's PNG as its thumbnail.
 
 const els = {};
 const sliders = new Map(); // slider key -> { input, output }
+let statsWanted = true; // S toggles the stats panel (hide it for the demo video)
+let running = false;
 
 /**
  * Finds the UI elements and wires up buttons and keyboard shortcuts.
@@ -14,26 +16,36 @@ const sliders = new Map(); // slider key -> { input, output }
  * @param {() => void} handlers.onNextGlasses
  * @param {() => void} handlers.onToggleMode - switch between 2D and 3D
  * @param {() => void} handlers.onTogglePin - auto-fit (eye pinning + face sizing) on/off
+ * @param {(scenario: string) => void} handlers.onCapture - "Record 30 s CSV"
  * @param {(dScale: number, dBridgeY: number) => void} handlers.onTune
  *   nudges the current design's 2D fit; only called while the 2D readout shows
  */
-export function initUI({ onStart, onToggleDebug, onNextGlasses, onToggleMode, onTogglePin, onTune }) {
+export function initUI({ onStart, onToggleDebug, onNextGlasses, onToggleMode, onTogglePin, onCapture, onTune }) {
   els.start = document.getElementById('start-btn');
   els.picker = document.getElementById('picker');
   els.mode = document.getElementById('mode-btn');
   els.debug = document.getElementById('debug-btn');
   els.message = document.getElementById('message');
-  els.fps = document.getElementById('fps');
+  els.stats = document.getElementById('stats');
+  els.statsText = document.getElementById('stats-text');
+  els.scenario = document.getElementById('scenario');
+  els.capture = document.getElementById('capture-btn');
   els.tuning = document.getElementById('tuning');
   els.tune3d = document.getElementById('tune3d');
 
   els.start.addEventListener('click', onStart);
   els.mode.addEventListener('click', onToggleMode);
   els.debug.addEventListener('click', onToggleDebug);
+  els.capture.addEventListener('click', () => onCapture(els.scenario.value.trim()));
 
   window.addEventListener('keydown', (e) => {
+    // Typing a scenario name must not trigger the single-letter shortcuts.
+    if (e.target instanceof HTMLInputElement && e.target.type === 'text') return;
     const key = e.key.toLowerCase();
-    if (key === 'd') onToggleDebug();
+    if (key === 's') {
+      statsWanted = !statsWanted;
+      els.stats.hidden = !(running && statsWanted);
+    } else if (key === 'd') onToggleDebug();
     else if (key === 'g') onNextGlasses();
     else if (key === 'm') onToggleMode();
     else if (key === 'p') onTogglePin();
@@ -142,7 +154,8 @@ export function setRunning() {
   els.picker.hidden = false;
   els.mode.hidden = false;
   els.debug.hidden = false;
-  els.fps.hidden = false;
+  running = true;
+  els.stats.hidden = !statsWanted;
 }
 
 /**
@@ -198,12 +211,26 @@ export function setTuning(design) {
 }
 
 /**
- * Updates the FPS label in the corner.
- * @param {number} fps
- * @param {string} delegate - 'GPU' or 'CPU', shown so slow runs are easy to explain
- * @param {string} [extra] - optional debug text appended to the label
+ * Updates the stats panel text (several lines).
+ * @param {string} text
  */
-export function setFps(fps, delegate, extra = '') {
-  const text = `${fps} FPS · ${delegate}${extra ? ` · ${extra}` : ''}`;
-  if (els.fps.textContent !== text) els.fps.textContent = text;
+export function setStats(text) {
+  if (els.statsText.textContent !== text) els.statsText.textContent = text;
+}
+
+/**
+ * Shows capture progress on the record button.
+ * @param {number | null} remainingMs - null when not recording
+ * @param {string} [doneLabel] - shown briefly after a capture finishes
+ */
+export function setCaptureState(remainingMs, doneLabel) {
+  if (remainingMs !== null) {
+    els.capture.disabled = true;
+    els.scenario.disabled = true;
+    els.capture.textContent = `Recording… ${Math.ceil(remainingMs / 1000)} s`;
+  } else {
+    els.capture.disabled = false;
+    els.scenario.disabled = false;
+    els.capture.textContent = doneLabel ?? 'Record 30 s CSV';
+  }
 }

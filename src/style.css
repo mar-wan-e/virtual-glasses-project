@@ -53,14 +53,52 @@ body {
   line-height: 1.4;
 }
 
-#fps {
+/* Stats panel: live performance numbers + CSV capture. */
+#stats {
   position: absolute;
   top: 0.75rem;
   left: 0.75rem;
-  padding: 0.25rem 0.5rem;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  background: rgb(0 0 0 / 0.65);
+  font: 0.8rem ui-monospace, monospace;
+}
+
+#stats-text {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+}
+
+#capture {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+#capture input {
+  width: 11rem;
+  min-width: 0;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid #555;
   border-radius: 0.25rem;
-  background: rgb(0 0 0 / 0.6);
-  font: 0.85rem ui-monospace, monospace;
+  background: #222;
+  color: inherit;
+  font: inherit;
+}
+
+#capture button {
+  padding: 0.2rem 0.5rem;
+  border: 0;
+  border-radius: 0.25rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+#capture button:disabled {
+  cursor: default;
+  opacity: 0.7;
 }
 
 /* Debug-only readout of the 2D fit values while tuning. */

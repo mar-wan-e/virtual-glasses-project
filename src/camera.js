@@ -68,10 +68,12 @@ function cameraErrorMessage(err) {
  * is the start point for end-to-end latency in metrics.js.
  *
  * @param {HTMLVideoElement} video
- * @param {(frame: { now: number, captureTime: number }) => void} callback
+ * @param {(frame: { now: number, captureTime: number, hasCaptureTime: boolean }) => void} callback
  *   now: when the callback fired (ms, performance.now clock)
  *   captureTime: when the frame was captured; falls back to `now` if the
  *   browser doesn't report it, which makes latency an underestimate
+ *   hasCaptureTime: whether captureTime came from the browser (recorded in
+ *   the metrics CSV, so an underestimate is never mistaken for a real value)
  * @returns {() => void} stop function
  */
 export function onVideoFrame(video, callback) {
@@ -80,7 +82,8 @@ export function onVideoFrame(video, callback) {
   if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
     const step = (now, metadata) => {
       if (!running) return;
-      callback({ now, captureTime: metadata.captureTime ?? now });
+      const hasCaptureTime = typeof metadata.captureTime === 'number';
+      callback({ now, captureTime: hasCaptureTime ? metadata.captureTime : now, hasCaptureTime });
       video.requestVideoFrameCallback(step);
     };
     video.requestVideoFrameCallback(step);
@@ -91,7 +94,7 @@ export function onVideoFrame(video, callback) {
       if (!running) return;
       if (video.currentTime !== lastTime) {
         lastTime = video.currentTime;
-        callback({ now, captureTime: now });
+        callback({ now, captureTime: now, hasCaptureTime: false });
       }
       requestAnimationFrame(step);
     };

@@ -1,5 +1,6 @@
 // main.js — app entry point.
 // Wires the modules together and owns the per-frame loop:
+//   (metrics.js times detection and end-to-end latency for every frame)
 //   camera frame -> tracker -> One Euro smoothing -> 3D renderer -> UI
 //                           \-> 2D overlay (fallback mode, raw landmarks)
 
@@ -14,7 +15,7 @@ import {
   updateLighting, getLightLevel, headDistance, pinToEyes, eyeCentre, measureFace, setFaceFit,
 } from './renderer3d.js';
 import { GLASSES, CAMERA_FOV, SMOOTHING, OCCLUDER } from './glasses.js';
-import { createFpsCounter } from './metrics.js';
+import { createMetrics } from './metrics.js';
 import * as ui from './ui.js';
 
 // How many consecutive frames without a face before showing the "no face"
@@ -28,7 +29,6 @@ const STALL_MS = 1000;
 // Keep showing the glasses at their last pose if the face is lost for less
 // than this (a brief tracking dropout on a fast head turn).
 const HOLD_POSE_MS = 200;
-
 
 // Debug sliders for 3D. The first four are per design (offsets in
 // canonical-face centimetres); the rest are shared by all designs.
@@ -56,7 +56,8 @@ const videoCtx = videoCanvas.getContext('2d', { alpha: false }); // opaque: cove
 const debugCanvas = document.getElementById('debug-canvas');
 const debugCtx = debugCanvas.getContext('2d');
 
-const fpsCounter = createFpsCounter();
+const metrics = createMetrics();
+let lastStatsAt = 0; // last stats-panel refresh (it updates 4x a second)
 let trackerReady; // Promise<'GPU' | 'CPU'>, started at page load
 let pngsReady; // Promise<void>, 2D glasses images preloading
 let modelsReady; // Promise<void>, 3D glasses models preloading
@@ -94,6 +95,7 @@ function bootstrap() {
     onToggleMode: toggleMode,
     onTune: tune2D,
     onTogglePin: toggleAutoFit,
+    onCapture: capture,
   });
   ui.initSliders(SLIDERS, onSlider, copyFitValues);
   ui.initPicker(GLASSES, selectGlasses);
@@ -154,7 +156,7 @@ function checkForStall() {
   debugCtx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
   render2D(null, null);
   render3D(null, null, false);
-  ui.setFps(0, delegate);
+  ui.setStats(`0 FPS · ${delegate}`);
   ui.showMessage('No video from the camera. Is it covered or switched off?');
 }
 
@@ -163,7 +165,7 @@ function checkForStall() {
  * and the debug view, update the no-face message and the FPS label.
  * @param {{ now: number, captureTime: number }} frame
  */
-function processFrame({ now }) {
+function processFrame({ now, captureTime, hasCaptureTime }) {
   lastFrameAt = performance.now();
 
   // Show this exact frame on our own canvas, in the same step that draws the
@@ -172,7 +174,9 @@ function processFrame({ now }) {
   // analysed, so on fast head turns the glasses would visibly trail the face.
   videoCtx.drawImage(video, 0, 0, videoCanvas.width, videoCanvas.height);
 
+  const t0 = performance.now();
   const face = detect(video, now);
+  const inferenceMs = performance.now() - t0; // time inside MediaPipe only
   const design = GLASSES[designIndex];
 
   // Only one renderer shows glasses; passing null makes the other one clear.
@@ -215,14 +219,67 @@ function processFrame({ now }) {
       : '',
   );
 
-  // In 3D debug, also show how far away MediaPipe thinks the head is: a quick
-  // check that the pose matrix makes sense (a webcam user is ~40-80 cm away).
-  // Also show the light level the room brightness has set (1 = normal).
-  const extra = debug && mode === '3d' && face?.matrix
-    ? `head ${headDistance().toFixed(0)} cm · light ${getLightLevel().toFixed(2)} · ` +
-      `face ${faceFit.value().ratio.toFixed(2)}× · ears ${faceFit.value().earOffsetY.toFixed(1)} cm · auto-fit ${autoFit ? 'on' : 'off'} (P)`
-    : '';
-  ui.setFps(fpsCounter.tick(now), delegate, extra);
+  // Everything for this frame is drawn: record its timings (latency is
+  // completed by metrics.js when the frame reaches the screen).
+  metrics.frame({ inferenceMs, captureTime, hasCaptureTime, face: Boolean(face) });
+  updateStats(face);
+}
+
+/**
+ * Refreshes the stats panel 4x a second (every frame would be unreadable and
+ * wasteful): FPS, inference and latency p50/p95, plus debug readouts.
+ * @param {object | null} face - this frame's detection
+ */
+function updateStats(face) {
+  const t = performance.now();
+  if (t - lastStatsAt < 250) return;
+  lastStatsAt = t;
+
+  const s = metrics.summary();
+  const ms = (n) => (Number.isFinite(n) ? n.toFixed(1).padStart(5) : '    –');
+  const lines = [
+    `${s.fps.toFixed(1)} FPS · ${delegate} · ${video.videoWidth}×${video.videoHeight}`,
+    `inference  p50 ${ms(s.inferenceP50)}  p95 ${ms(s.inferenceP95)} ms`,
+    `latency    p50 ${ms(s.latencyP50)}  p95 ${ms(s.latencyP95)} ms`,
+  ];
+  // In 3D debug, also show how far away MediaPipe thinks the head is (a
+  // sanity check of the pose: a webcam user is ~40-80 cm away), the light
+  // level (1 = normal room), and what auto-fit measured.
+  if (debug && mode === '3d' && face?.matrix) {
+    const fit = faceFit.value();
+    lines.push(
+      `head ${headDistance().toFixed(0)} cm · light ${getLightLevel().toFixed(2)}`,
+      `face ${fit.ratio.toFixed(2)}× · ears ${fit.earOffsetY.toFixed(1)} cm · auto-fit ${autoFit ? 'on' : 'off'} (P)`,
+    );
+  }
+  ui.setStats(lines.join('\n'));
+
+  const remaining = metrics.capturing();
+  if (remaining !== null) ui.setCaptureState(remaining);
+}
+
+/**
+ * "Record 30 s CSV": captures every frame for 30 s with the test conditions,
+ * then downloads the CSV (see metrics.js).
+ * @param {string} scenario - name typed in the stats panel, e.g. "dim-light"
+ */
+async function capture(scenario) {
+  if (metrics.capturing() !== null) return;
+  ui.setCaptureState(30000);
+  const result = await metrics.startCapture({
+    scenario: scenario || 'capture',
+    date: new Date().toISOString(),
+    browser: navigator.userAgent,
+    camera_resolution: `${video.videoWidth}x${video.videoHeight}`,
+    mediapipe_delegate: delegate,
+    mode,
+    design: GLASSES[designIndex].id,
+    auto_fit: String(autoFit),
+    screen: `${screen.width}x${screen.height} @${window.devicePixelRatio}x`,
+    cpu_threads: String(navigator.hardwareConcurrency ?? ''),
+  });
+  ui.setCaptureState(null, `Saved · ${result.fps.toFixed(1)} FPS, ${result.latencyP50.toFixed(0)} ms`);
+  setTimeout(() => ui.setCaptureState(null), 5000);
 }
 
 /** Shows or hides the landmark dots and the tuning panel for the mode. */
