@@ -224,3 +224,15 @@ Then draft a README with: overview, setup, architecture, tech choices and
 why,
 performance results table (leave numbers for me), limitations, AI tools used.
 ```
+
+### Prompt 17 (Claude Code)
+
+```
+some changes in glasses number 2 and 3, they have different dimensions so they dont tuck behind the ea
+```
+
+(Claude Code measured each model's arm from the side: all three already hook
+down at the end, designs 2 and 3 earlier and more steeply. Arm aiming now
+uses the straight part's direction, detects where each model's own hook
+starts, and stretches only the straight part so the hook begins just before
+the ear's top edge.)

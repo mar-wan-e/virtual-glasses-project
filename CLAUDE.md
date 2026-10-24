@@ -135,14 +135,18 @@ from `import.meta.env.BASE_URL`, never hard-coded as `/models/...`.
   Glasses (uniform), occluder width and ear x scale by it; setFaceRatio
   ignores changes < 1%. No calibration constant: at webcam distance the raw
   ratio is ~1.0 (1.02-1.08 on test faces).
-- Arms (renderer3d.js aimArms): frame vertices behind the hinge (lens back -
-  0.3 cm, |x| > half frame width) are rotated about the hinge toward a rest
-  point on top of the ear (ear centre 0.4 in, 2 up, 0.5 forward), moved
-  outward if needed so the straight arm clears the temple (landmark 356 +
-  0.25 cm), stretched to reach it plus a 3 cm tip. The hook: the arm curves
-  55 deg down, pivoting 0.8 cm before the ear's top edge and blended over
-  1.6 cm, so the bend shows going over the ear; the part behind the ear is
-  hidden by the invisible ear (EAR_SIZE half-sizes 0.8 x 3 x 1.8 cm).
+- Arms (renderer3d.js aimArms), measured per model and side: hinge (lens
+  back - 0.3 cm, |x| > half frame width), straight-part direction (hinge ->
+  arm centre at 40-60% of its depth; NOT hinge -> tip, since all 3 models'
+  arms already hook down at the end: glasses-1 ~2 cm drop from ~10 cm back,
+  glasses-2 ~4 cm from ~9 cm, glasses-3 ~3.5 cm from ~9 cm), and where that
+  built-in hook starts (centre drops HOOK_DROP 0.4 cm below the line). The
+  arm is rotated about the hinge toward the rest point on top of the ear
+  (ear centre 0.4 in, 2.8 up, 0.5 forward; pushed out to clear the temple,
+  landmark 356 + 0.25 cm); only the straight part is stretched so the hook
+  starts TIP_LEAD 0.8 cm before the ear top (bend visible, rest hidden by
+  the invisible ear); the hook keeps the model's shape. Models without a
+  hook get a 55 deg added curve.
   Occluder is full head width (1.0) so the head
   hides arms where a real head would (e.g. over the hair when looking
   down); ears sit outside the arms (x 8.2). Runs on fit/face-width/ear
@@ -173,4 +177,4 @@ from `import.meta.env.BASE_URL`, never hard-coded as `/models/...`.
 - Track one face only. Use MediaPipe's pretrained model as-is.
 - The author checks visual alignment and realism on their own webcam; Claude Code
   cannot see it, so ask for observations rather than assuming it looks right.
-- Every prompt is logged in `AI_PROMPTS.md`.
+- Do NOT add to `AI_PROMPTS.md`; the author maintains it themselves from now on.

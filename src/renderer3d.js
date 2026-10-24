@@ -238,6 +238,9 @@ const TIP_LENGTH = 3;
 const TIP_DROOP_DEG = 55;
 const TIP_LEAD = 0.8;
 const TIP_BLEND = 1.6;
+// A model has its own hook if its arm drops this far (cm) below its straight
+// line near the end. All three current models do.
+const HOOK_DROP = 0.4;
 // Distance (cm) behind the lenses where the arm starts (the hinge), and how
 // far behind the hinge the bend blends in, so there's no kink at the hinge.
 const HINGE_GAP = 0.3;
@@ -278,15 +281,19 @@ function meshToFace(mesh, fit, out) {
  * Bends each temple arm at its hinge so it runs to this user's ear.
  *
  * The models' arms are rigid and point wherever the 3D artist left them, so on
- * a real face they miss the ears. For each side we find, in face space (cm):
+ * a real face they miss the ears. Each model is different (arm length, where
+ * its own hook starts, how steep it is), so everything is measured from the
+ * model, per side, in face space (cm):
  *   - the hinge: where the arm leaves the frame, just behind the lenses;
- *   - the arm's tip: its rearmost centimetre.
- * Then every vertex behind the hinge is rotated about the hinge so the arm
- * points at the ear's resting point, and stretched along the arm so the tip
- * ends just behind the ear (hidden by the invisible ear). The bend fades in
- * over the first centimetre so there's no kink. Runs when the fit, face width
- * or ear position changes, not every frame: the ears don't move relative to
- * the head.
+ *   - the straight part's direction (hinge to the middle of the arm);
+ *   - where the model's own hook starts (the arm drops below that line).
+ * Then every vertex behind the hinge is rotated about the hinge so the
+ * straight part points at the top of the user's ear, and the straight part
+ * is stretched so the model's hook starts exactly there and curves down
+ * behind the ear (hidden by the invisible ear). Models without a hook get
+ * one added. The bend fades in over the first centimetre so there's no kink.
+ * Runs when the fit, face width or ear position changes, not every frame:
+ * the ears don't move relative to the head.
  * @param {{ fit: THREE.Group, design: object }} entry
  */
 function aimArms({ fit, design }) {
@@ -314,34 +321,46 @@ function aimArms({ fit, design }) {
     for (let i = 0; i < p.length; i += 3) halfW = Math.max(halfW, Math.abs(_v.fromArray(p, i).applyMatrix4(_m).x));
   }
   const isArm = (v, side) => side * v.x > 0.5 * halfW && v.z < hingeZ; // excludes nose pads
+  const armPoints = { [-1]: [], [1]: [] };
+  for (const mesh of frames) {
+    meshToFace(mesh, fit, _m);
+    const p = mesh.userData.origPos;
+    for (let i = 0; i < p.length; i += 3) {
+      _v.fromArray(p, i).applyMatrix4(_m);
+      const side = Math.sign(_v.x);
+      if (side && isArm(_v, side)) armPoints[side].push(_v.clone());
+    }
+  }
+  const mean = (pts) => pts.reduce((acc, p) => acc.add(p), new THREE.Vector3()).divideScalar(pts.length);
+
   const sides = [-1, 1].map((side) => {
-    let minZ = Infinity;
-    for (const mesh of frames) {
-      meshToFace(mesh, fit, _m);
-      const p = mesh.userData.origPos;
-      for (let i = 0; i < p.length; i += 3) {
-        _v.fromArray(p, i).applyMatrix4(_m);
-        if (isArm(_v, side)) minZ = Math.min(minZ, _v.z);
+    const pts = armPoints[side];
+    if (pts.length < 10) return null;
+    const depth = hingeZ - Math.min(...pts.map((p) => p.z)); // how far back the arm goes
+    const nearHinge = pts.filter((p) => p.z > hingeZ - 1);
+    const middle = pts.filter((p) => p.z < hingeZ - 0.4 * depth && p.z > hingeZ - 0.6 * depth);
+    if (!nearHinge.length || !middle.length) return null;
+    const hinge = mean(nearHinge);
+    // Direction of the straight part of the arm. Measured to the arm's middle,
+    // not its tip: most models already curve down at the end, and aiming
+    // "hinge to tip" at the ear would tilt the straight part upward.
+    const dir = mean(middle).sub(hinge).normalize();
+
+    // Where the model's own hook starts: walk back along the arm in 0.5 cm
+    // steps and find where the arm drops HOOK_DROP below its straight line.
+    const along = (p) => _u.copy(p).sub(hinge).dot(dir);
+    const drop = (p) => _u.copy(p).sub(hinge).addScaledVector(dir, -along(p)).y; // height off the line
+    const baseline = middle.reduce((s, p) => s + drop(p), 0) / middle.length;
+    const maxAlong = Math.max(...pts.map(along));
+    let hookAt = maxAlong;
+    for (let a = 0.6 * maxAlong; a < maxAlong; a += 0.5) {
+      const slice = pts.filter((p) => { const t = along(p); return t >= a && t < a + 0.5; });
+      if (slice.length && slice.reduce((s, p) => s + drop(p), 0) / slice.length < baseline - HOOK_DROP) {
+        hookAt = a;
+        break;
       }
     }
-    if (!Number.isFinite(minZ)) return null;
-    const hinge = new THREE.Vector3();
-    const tip = new THREE.Vector3();
-    let nh = 0;
-    let nt = 0;
-    for (const mesh of frames) {
-      meshToFace(mesh, fit, _m);
-      const p = mesh.userData.origPos;
-      for (let i = 0; i < p.length; i += 3) {
-        _v.fromArray(p, i).applyMatrix4(_m);
-        if (!isArm(_v, side)) continue;
-        if (_v.z > hingeZ - 1) { hinge.add(_v); nh++; } // first cm behind the hinge
-        if (_v.z < minZ + 1) { tip.add(_v); nt++; } // last cm of the arm
-      }
-    }
-    if (!nh || !nt) return null;
-    hinge.divideScalar(nh);
-    tip.divideScalar(nt);
+    const hasHook = hookAt < maxAlong - 1;
 
     // Rest point on top of this user's ear (same maths as setOccluder's ears).
     const { ear, width, z: occZ } = occluderSettings;
@@ -362,21 +381,32 @@ function aimArms({ fit, design }) {
     }
     rest.x *= side;
 
-    const from = tip.clone().sub(hinge);
     const to = rest.clone().sub(hinge);
-    const dir = from.clone().normalize();
+    const restDist = to.length() * design.armLength; // where the hook should start
     const newDir = to.clone().normalize();
+
+    // How each point's distance along the arm changes. With a built-in hook:
+    // stretch only the straight part so the hook starts at the top of the ear,
+    // and move the hook along unchanged (keeps the model's own shape). Without
+    // one: stretch the whole arm to reach past the ear; we add a hook below.
+    // The hook starts TIP_LEAD before the ear's top edge, so you can see it
+    // bend as it goes over the ear before the ear hides the rest.
+    const k = hasHook ? Math.max(0.1, restDist - TIP_LEAD) / hookAt : (restDist + TIP_LENGTH) / maxAlong;
+    const mapAlong = hasHook
+      ? (a) => (a <= hookAt ? a * k : a + hookAt * (k - 1))
+      : (a) => a * k;
+
     return {
       hinge,
       dir,
-      // The curve over the ear pivots where it starts (TIP_LEAD before the rest
-      // point), so nothing in front of it moves; points after it swing down.
-      bendAt: hinge.clone().addScaledVector(newDir, Math.max(0, to.length() - TIP_LEAD)),
-      restDist: to.length(), // straight part: hinge -> rest point
+      mapAlong,
+      hasHook,
+      restDist,
       rotation: new THREE.Quaternion().setFromUnitVectors(dir, newDir),
-      // Stretch the arm so it reaches the rest point plus the tip behind the ear.
-      stretch: (to.length() + TIP_LENGTH * design.armLength) / from.length(),
-      // Bend the tip down: rotate about a horizontal axis through bendAt.
+      // Added hook (models without one): the curve over the ear pivots where
+      // it starts (TIP_LEAD before the rest point), so nothing in front of it
+      // moves; points after it swing down about a horizontal axis.
+      bendAt: hinge.clone().addScaledVector(newDir, Math.max(0, restDist - TIP_LEAD)),
       droop: new THREE.Quaternion().setFromAxisAngle(
         newDir.clone().cross(DOWN).normalize(),
         THREE.MathUtils.degToRad(TIP_DROOP_DEG),
@@ -407,11 +437,13 @@ function aimArms({ fit, design }) {
       // 1. Stretch along the arm's own direction only (keeps its thickness),
       //    then rotate about the hinge toward the ear.
       _u.copy(_v).sub(side.hinge);
-      const along = _u.dot(side.dir) * side.stretch; // distance along the new arm
-      _a.copy(side.dir).multiplyScalar(_u.dot(side.dir));
-      _u.sub(_a).add(_a.multiplyScalar(side.stretch)).applyQuaternion(side.rotation).add(side.hinge);
-      // 2. Past the rest point, curve the tip down behind the ear.
-      const droop = THREE.MathUtils.smoothstep(along, side.restDist - TIP_LEAD, side.restDist - TIP_LEAD + TIP_BLEND);
+      const a0 = _u.dot(side.dir); // distance along the original arm
+      const along = side.mapAlong(a0); // ... and along the new one
+      _u.addScaledVector(side.dir, along - a0).applyQuaternion(side.rotation).add(side.hinge);
+      // 2. Models without their own hook: curve the tip down over the ear.
+      const droop = side.hasHook
+        ? 0
+        : THREE.MathUtils.smoothstep(along, side.restDist - TIP_LEAD, side.restDist - TIP_LEAD + TIP_BLEND);
       if (droop > 0) {
         _a.copy(_u).sub(side.bendAt).applyQuaternion(side.droop).add(side.bendAt);
         _u.lerp(_a, droop);
