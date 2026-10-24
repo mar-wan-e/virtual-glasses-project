@@ -9,7 +9,10 @@
     <div id="stage">
       <!-- #view keeps the video's aspect ratio; everything inside is mirrored together. -->
       <div id="view" class="mirrored">
+        <!-- The live video stays here (covered) so the browser keeps decoding
+             frames; video-canvas shows each frame in sync with the glasses. -->
         <video id="video" playsinline muted></video>
+        <canvas id="video-canvas"></canvas>
         <canvas id="debug-canvas"></canvas>
       </div>
       <div id="message" hidden></div>
@@ -20,7 +23,8 @@
 
     <div id="ui">
       <button id="start-btn">Start camera</button>
-      <button id="glasses-btn" hidden>Glasses (G)</button>
+      <!-- Thumbnail buttons, one per design; built by ui.js from glasses.js. -->
+      <div id="picker" role="radiogroup" aria-label="Glasses" hidden></div>
       <button id="mode-btn" hidden>Mode: 3D (M)</button>
       <button id="debug-btn" hidden>Landmarks: off (D)</button>
     </div>

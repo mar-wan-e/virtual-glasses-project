@@ -47,7 +47,7 @@ export async function initTracker() {
  *   strictly increase between calls, so equal or older values are bumped up
  * @returns {{ landmarks: Array<{x:number,y:number,z:number}>, matrix: number[] } | null}
  *   landmarks: 478 points, x/y normalised to 0..1 of the video size
- *   matrix: 16 numbers, the 4x4 head-pose matrix (column-major)
+ *   matrix: 16 numbers, the 4x4 head-pose matrix (always column-major)
  *   null if no face is in view or the tracker isn't loaded yet
  */
 export function detect(video, timestampMs) {
@@ -61,8 +61,24 @@ export function detect(video, timestampMs) {
 
   return {
     landmarks: result.faceLandmarks[0],
-    matrix: result.facialTransformationMatrixes[0]?.data ?? null,
+    matrix: toColumnMajor(result.facialTransformationMatrixes[0]?.data),
   };
+}
+
+/**
+ * Returns the 4x4 matrix as column-major (the order Three.js expects).
+ * MediaPipe sends column-major today; as a safety net, detect row-major by
+ * where the translation is: column-major keeps it in elements 12-14 and has
+ * a bottom row (3, 7, 11) of 0. Row-major is the other way round.
+ * @param {number[] | undefined} data - 16 numbers
+ * @returns {number[] | null}
+ */
+function toColumnMajor(data) {
+  if (!data || data.length !== 16) return null;
+  const bottomRow = Math.abs(data[3]) + Math.abs(data[7]) + Math.abs(data[11]);
+  const lastColumn = Math.abs(data[12]) + Math.abs(data[13]) + Math.abs(data[14]);
+  if (bottomRow <= lastColumn) return data;
+  return [0, 1, 2, 3].flatMap((col) => [0, 4, 8, 12].map((row) => data[row + col])); // transpose
 }
 
 /**

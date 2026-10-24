@@ -1,7 +1,7 @@
 // ui.js — on-screen controls and overlays.
 // Owns the DOM for the buttons, message box, FPS label and tuning panels;
 // main.js tells it what to show and passes callbacks for user actions.
-// Phase 4 replaces the "next glasses" button with a thumbnail picker.
+// The glasses picker shows each design's PNG as its thumbnail.
 
 const els = {};
 const sliders = new Map(); // slider key -> { input, output }
@@ -13,12 +13,13 @@ const sliders = new Map(); // slider key -> { input, output }
  * @param {() => void} handlers.onToggleDebug
  * @param {() => void} handlers.onNextGlasses
  * @param {() => void} handlers.onToggleMode - switch between 2D and 3D
+ * @param {() => void} handlers.onTogglePin - auto-fit (eye pinning + face sizing) on/off
  * @param {(dScale: number, dBridgeY: number) => void} handlers.onTune
  *   nudges the current design's 2D fit; only called while the 2D readout shows
  */
-export function initUI({ onStart, onToggleDebug, onNextGlasses, onToggleMode, onTune }) {
+export function initUI({ onStart, onToggleDebug, onNextGlasses, onToggleMode, onTogglePin, onTune }) {
   els.start = document.getElementById('start-btn');
-  els.glasses = document.getElementById('glasses-btn');
+  els.picker = document.getElementById('picker');
   els.mode = document.getElementById('mode-btn');
   els.debug = document.getElementById('debug-btn');
   els.message = document.getElementById('message');
@@ -27,7 +28,6 @@ export function initUI({ onStart, onToggleDebug, onNextGlasses, onToggleMode, on
   els.tune3d = document.getElementById('tune3d');
 
   els.start.addEventListener('click', onStart);
-  els.glasses.addEventListener('click', onNextGlasses);
   els.mode.addEventListener('click', onToggleMode);
   els.debug.addEventListener('click', onToggleDebug);
 
@@ -36,6 +36,7 @@ export function initUI({ onStart, onToggleDebug, onNextGlasses, onToggleMode, on
     if (key === 'd') onToggleDebug();
     else if (key === 'g') onNextGlasses();
     else if (key === 'm') onToggleMode();
+    else if (key === 'p') onTogglePin();
     else if (!els.tuning.hidden) {
       // 2D tuning keys, active only while the 2D readout is showing:
       //   +/-        glasses bigger / smaller
@@ -63,6 +64,7 @@ export function initSliders(specs, onInput, onCopy) {
   els.tune3d.appendChild(els.tune3dTitle);
 
   for (const s of specs) {
+    const digits = s.step < 0.01 ? 3 : 2; // readout precision follows the step
     const label = document.createElement('label');
     const input = Object.assign(document.createElement('input'), {
       type: 'range', min: s.min, max: s.max, step: s.step,
@@ -72,7 +74,7 @@ export function initSliders(specs, onInput, onCopy) {
     els.tune3d.appendChild(label);
 
     input.addEventListener('input', () => {
-      output.textContent = Number(input.value).toFixed(2);
+      output.textContent = Number(input.value).toFixed(digits);
       onInput(s.key, Number(input.value));
     });
     // Let the D/G/M shortcuts still work after clicking a slider, and stop
@@ -80,7 +82,7 @@ export function initSliders(specs, onInput, onCopy) {
     input.addEventListener('keydown', (e) => {
       if (e.key.startsWith('Arrow')) e.stopPropagation();
     });
-    sliders.set(s.key, { input, output });
+    sliders.set(s.key, { input, output, digits });
   }
 
   const copy = document.createElement('button');
@@ -111,7 +113,7 @@ export function setSliderValues(title, values) {
     const s = sliders.get(key);
     if (!s) continue;
     s.input.value = value;
-    s.output.textContent = Number(value).toFixed(2);
+    s.output.textContent = Number(value).toFixed(s.digits);
   }
 }
 
@@ -137,7 +139,7 @@ export function setStartEnabled(enabled) {
 /** Switches the controls from "not started" to "running". */
 export function setRunning() {
   els.start.hidden = true;
-  els.glasses.hidden = false;
+  els.picker.hidden = false;
   els.mode.hidden = false;
   els.debug.hidden = false;
   els.fps.hidden = false;
@@ -157,11 +159,31 @@ export function setDebugAndMode(debug, mode) {
 }
 
 /**
- * Shows the current design's name on the glasses button.
- * @param {string} name
+ * Builds the glasses picker: one thumbnail button per design.
+ * @param {Array<{ name: string, image: string }>} designs
+ * @param {(index: number) => void} onSelect
  */
-export function setGlassesLabel(name) {
-  els.glasses.textContent = `${name} (G)`;
+export function initPicker(designs, onSelect) {
+  designs.forEach((d, i) => {
+    const btn = document.createElement('button');
+    btn.setAttribute('role', 'radio');
+    btn.title = `${d.name} (G cycles)`;
+    btn.setAttribute('aria-label', d.name);
+    const img = Object.assign(document.createElement('img'), { src: d.image, alt: '' });
+    btn.appendChild(img);
+    btn.addEventListener('click', () => onSelect(i));
+    els.picker.appendChild(btn);
+  });
+}
+
+/**
+ * Highlights the selected design in the picker.
+ * @param {number} index
+ */
+export function setSelectedGlasses(index) {
+  [...els.picker.children].forEach((btn, i) => {
+    btn.setAttribute('aria-checked', String(i === index));
+  });
 }
 
 /**
