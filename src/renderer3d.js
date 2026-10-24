@@ -241,6 +241,9 @@ const TIP_BLEND = 1.6;
 // A model has its own hook if its arm drops this far (cm) below its straight
 // line near the end. All three current models do.
 const HOOK_DROP = 0.4;
+// How far (cm) the hook tucks inward toward the head by its end, so the tip
+// ends inside the invisible head instead of poking out behind the ear.
+const HOOK_TUCK = 1.2;
 // Distance (cm) behind the lenses where the arm starts (the hinge), and how
 // far behind the hinge the bend blends in, so there's no kink at the hinge.
 const HINGE_GAP = 0.3;
@@ -301,7 +304,7 @@ function aimArms({ fit, design }) {
   const meshes = [];
   fit.traverse((o) => { if (o.isMesh) meshes.push(o); });
 
-  // Hinge depth: just behind the back of the lenses.
+  // Back of the lenses: the arm can only start behind this.
   let lensBack = Infinity;
   for (const mesh of meshes) {
     if (!mesh.userData.isLens) continue;
@@ -310,9 +313,9 @@ function aimArms({ fit, design }) {
     for (let i = 0; i < pos.count; i++) lensBack = Math.min(lensBack, _v.fromBufferAttribute(pos, i).applyMatrix4(_m).z);
   }
   if (!Number.isFinite(lensBack)) return;
-  const hingeZ = lensBack - HINGE_GAP;
 
-  // Pass 1: find frame width, and per side the hinge point and tip.
+  // Pass 1: frame width, then every frame point on the outer half of each
+  // side (the side of the frame front + the arm; excludes the nose pads).
   const frames = meshes.filter((m) => !m.userData.isLens && m.userData.origPos);
   let halfW = 0;
   for (const mesh of frames) {
@@ -320,21 +323,44 @@ function aimArms({ fit, design }) {
     const p = mesh.userData.origPos;
     for (let i = 0; i < p.length; i += 3) halfW = Math.max(halfW, Math.abs(_v.fromArray(p, i).applyMatrix4(_m).x));
   }
-  const isArm = (v, side) => side * v.x > 0.5 * halfW && v.z < hingeZ; // excludes nose pads
-  const armPoints = { [-1]: [], [1]: [] };
+  const sidePoints = { [-1]: [], [1]: [] };
   for (const mesh of frames) {
     meshToFace(mesh, fit, _m);
     const p = mesh.userData.origPos;
     for (let i = 0; i < p.length; i += 3) {
       _v.fromArray(p, i).applyMatrix4(_m);
       const side = Math.sign(_v.x);
-      if (side && isArm(_v, side)) armPoints[side].push(_v.clone());
+      if (side && side * _v.x > 0.5 * halfW && _v.z < lensBack) sidePoints[side].push(_v.clone());
     }
   }
+
+  // Hinge: where the frame front ends and the arm begins. Walking back from
+  // the lenses, the side of the frame is as tall as the frame (~4 cm) until
+  // it narrows to just the arm (~1 cm). Found from the shape, because models
+  // differ: glasses-3's lens is a flat plane at the very front of a thick
+  // frame, so "just behind the lens" would cut through its rim.
+  const hingeZs = {};
+  for (const side of [-1, 1]) {
+    const pts = sidePoints[side];
+    hingeZs[side] = lensBack - HINGE_GAP; // fallback
+    if (!pts.length) continue;
+    const minZ = Math.min(...pts.map((p) => p.z));
+    for (let z = lensBack; z > minZ; z -= HINGE_STEP) {
+      const slice = pts.filter((p) => p.z <= z && p.z > z - HINGE_STEP);
+      if (!slice.length) continue;
+      const ys = slice.map((p) => p.y);
+      if (Math.max(...ys) - Math.min(...ys) < ARM_MAX_HEIGHT) {
+        hingeZs[side] = Math.min(z, lensBack - HINGE_GAP);
+        break;
+      }
+    }
+  }
+  const isArm = (v, side) => side * v.x > 0.5 * halfW && v.z < hingeZs[side];
   const mean = (pts) => pts.reduce((acc, p) => acc.add(p), new THREE.Vector3()).divideScalar(pts.length);
 
   const sides = [-1, 1].map((side) => {
-    const pts = armPoints[side];
+    const hingeZ = hingeZs[side];
+    const pts = sidePoints[side].filter((p) => p.z < hingeZ);
     if (pts.length < 10) return null;
     const depth = hingeZ - Math.min(...pts.map((p) => p.z)); // how far back the arm goes
     const nearHinge = pts.filter((p) => p.z > hingeZ - 1);
@@ -396,12 +422,19 @@ function aimArms({ fit, design }) {
       ? (a) => (a <= hookAt ? a * k : a + hookAt * (k - 1))
       : (a) => a * k;
 
+    // Where the hook starts and ends along the new arm, for the inward tuck.
+    const hookStart = Math.max(0, restDist - TIP_LEAD);
+    const hookEnd = Math.max(hookStart + 0.5, hasHook ? mapAlong(maxAlong) : restDist + TIP_LENGTH);
+
     return {
+      side,
       hinge,
       dir,
       mapAlong,
       hasHook,
       restDist,
+      hookStart,
+      hookEnd,
       rotation: new THREE.Quaternion().setFromUnitVectors(dir, newDir),
       // Added hook (models without one): the curve over the ear pivots where
       // it starts (TIP_LEAD before the rest point), so nothing in front of it
@@ -448,7 +481,12 @@ function aimArms({ fit, design }) {
         _a.copy(_u).sub(side.bendAt).applyQuaternion(side.droop).add(side.bendAt);
         _u.lerp(_a, droop);
       }
-      // 3. Blend by w near the hinge, so the frame front isn't kinked.
+      // 3. Along the hook, tuck the arm inward toward the head (as real temple
+      //    tips wrap behind the ear), so its end goes inside the invisible
+      //    head and can't poke out behind the ear, however long the hook is.
+      const tuck = THREE.MathUtils.smoothstep(along, side.hookStart, side.hookEnd);
+      if (tuck > 0) _u.x -= side.side * HOOK_TUCK * tuck;
+      // 4. Blend by w near the hinge, so the frame front isn't kinked.
       _v.lerp(_u, w).applyMatrix4(_mInv);
       pos.setXYZ(i, _v.x, _v.y, _v.z);
       if (nor && origNor) {
