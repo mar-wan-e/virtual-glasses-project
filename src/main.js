@@ -62,6 +62,7 @@ let trackerReady; // Promise<'GPU' | 'CPU'>, started at page load
 let pngsReady; // Promise<void>, 2D glasses images preloading
 let modelsReady; // Promise<void>, 3D glasses models preloading
 let delegate = '';
+let cameraFps = 0; // frames per second the webcam is set to deliver
 let debug = false;
 let mode = '3d'; // '3d' = GLB models on the head pose, '2d' = PNG overlay
 let fov = CAMERA_FOV;
@@ -114,6 +115,8 @@ async function start() {
 
   try {
     await startCamera(video);
+    // The rate the camera actually delivers: the app can't exceed it.
+    cameraFps = video.srcObject?.getVideoTracks()[0]?.getSettings().frameRate ?? 0;
   } catch (err) {
     ui.showMessage(err.message);
     ui.setStartEnabled(true); // let the user retry after fixing permissions
@@ -167,6 +170,7 @@ function checkForStall() {
  */
 function processFrame({ now, captureTime, hasCaptureTime }) {
   lastFrameAt = performance.now();
+  const frameStart = lastFrameAt; // for frame work time in the metrics
 
   // Show this exact frame on our own canvas, in the same step that draws the
   // glasses for it. A plain <video> would display newer frames as soon as they
@@ -221,7 +225,9 @@ function processFrame({ now, captureTime, hasCaptureTime }) {
 
   // Everything for this frame is drawn: record its timings (latency is
   // completed by metrics.js when the frame reaches the screen).
-  metrics.frame({ inferenceMs, captureTime, hasCaptureTime, face: Boolean(face) });
+  metrics.frame({
+    inferenceMs, frameMs: performance.now() - frameStart, captureTime, hasCaptureTime, face: Boolean(face),
+  });
   updateStats(face);
 }
 
@@ -238,8 +244,9 @@ function updateStats(face) {
   const s = metrics.summary();
   const ms = (n) => (Number.isFinite(n) ? n.toFixed(1).padStart(5) : '    –');
   const lines = [
-    `${s.fps.toFixed(1)} FPS · ${delegate} · ${video.videoWidth}×${video.videoHeight}`,
+    `${s.fps.toFixed(1)} FPS (camera ${Math.round(cameraFps)}) · ${delegate} · ${video.videoWidth}×${video.videoHeight}`,
     `inference  p50 ${ms(s.inferenceP50)}  p95 ${ms(s.inferenceP95)} ms`,
+    `frame work p50 ${ms(s.frameP50)}  p95 ${ms(s.frameP95)} ms`,
     `latency    p50 ${ms(s.latencyP50)}  p95 ${ms(s.latencyP95)} ms`,
   ];
   // In 3D debug, also show how far away MediaPipe thinks the head is (a
@@ -272,6 +279,7 @@ async function capture(scenario) {
     browser: navigator.userAgent,
     camera_resolution: `${video.videoWidth}x${video.videoHeight}`,
     mediapipe_delegate: delegate,
+    camera_fps_setting: String(cameraFps),
     mode,
     design: GLASSES[designIndex].id,
     auto_fit: String(autoFit),

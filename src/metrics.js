@@ -2,6 +2,9 @@
 //
 // Per processed camera frame we record:
 //   - inference ms: time spent in MediaPipe's detectForVideo (timed in main.js);
+//   - frame work ms: all of our work for the frame (draw video, detect,
+//     smooth, render glasses); if this is far below the camera's frame
+//     interval, a low FPS comes from the camera, not the app;
 //   - end-to-end latency ms: from when the camera captured the frame
 //     (requestVideoFrameCallback's captureTime) to when the frame we drew for
 //     it is on screen.
@@ -41,17 +44,20 @@ export function percentile(values, p) {
 
 /**
  * Summarises a list of frame samples.
- * @param {Array<{ time: number, inferenceMs: number, latencyMs: number | null }>} samples
+ * @param {Array<{ time: number, inferenceMs: number, frameMs: number, latencyMs: number | null }>} samples
  * @param {number} spanMs - time the samples cover, for FPS
- * @returns {{ fps: number, inferenceP50: number, inferenceP95: number, latencyP50: number, latencyP95: number, frames: number }}
+ * @returns {{ fps: number, inferenceP50: number, inferenceP95: number, frameP50: number, frameP95: number, latencyP50: number, latencyP95: number, frames: number }}
  */
 function summarise(samples, spanMs) {
   const inference = samples.map((s) => s.inferenceMs);
+  const frameWork = samples.map((s) => s.frameMs);
   const latency = samples.map((s) => s.latencyMs).filter((v) => v !== null);
   return {
     fps: spanMs > 0 ? ((samples.length - 1) * 1000) / spanMs : 0, // N frames = N-1 gaps
     inferenceP50: percentile(inference, 50),
     inferenceP95: percentile(inference, 95),
+    frameP50: percentile(frameWork, 50),
+    frameP95: percentile(frameWork, 95),
     latencyP50: percentile(latency, 50),
     latencyP95: percentile(latency, 95),
     frames: samples.length,
@@ -61,7 +67,7 @@ function summarise(samples, spanMs) {
 /**
  * Creates the metrics recorder.
  * @returns {{
- *   frame: (f: { inferenceMs: number, captureTime: number, hasCaptureTime: boolean, face: boolean }) => void,
+ *   frame: (f: { inferenceMs: number, frameMs: number, captureTime: number, hasCaptureTime: boolean, face: boolean }) => void,
  *   summary: () => ReturnType<typeof summarise>,
  *   startCapture: (meta: Record<string, string>, durationMs?: number) => Promise<object>,
  *   capturing: () => number | null,
@@ -75,9 +81,9 @@ export function createMetrics() {
    * Records one processed frame. Call right after the frame's glasses are
    * drawn. Latency is filled in a moment later, when the frame is on screen.
    */
-  function frame({ inferenceMs, captureTime, hasCaptureTime, face }) {
+  function frame({ inferenceMs, frameMs, captureTime, hasCaptureTime, face }) {
     const time = performance.now();
-    const sample = { time, inferenceMs, latencyMs: null, hasCaptureTime, face };
+    const sample = { time, inferenceMs, frameMs, latencyMs: null, hasCaptureTime, face };
     recent.push(sample);
     while (recent.length && recent[0].time < time - WINDOW_MS) recent.shift();
 
@@ -147,10 +153,11 @@ function toCsv(samples, start, meta, result) {
     `# frames: ${result.frames}`,
     `# fps_avg: ${f(result.fps)}`,
     `# inference_ms_p50: ${f(result.inferenceP50)}, p95: ${f(result.inferenceP95)}`,
+    `# frame_work_ms_p50: ${f(result.frameP50)}, p95: ${f(result.frameP95)}`,
     `# latency_ms_p50: ${f(result.latencyP50)}, p95: ${f(result.latencyP95)}`,
-    'time_ms,inference_ms,latency_ms,face_detected,capture_time_from_browser',
+    'time_ms,inference_ms,frame_work_ms,latency_ms,face_detected,capture_time_from_browser',
     ...samples.map((s) => [
-      f(s.time - start), f(s.inferenceMs), f(s.latencyMs ?? NaN), s.face ? 1 : 0, s.hasCaptureTime ? 1 : 0,
+      f(s.time - start), f(s.inferenceMs), f(s.frameMs), f(s.latencyMs ?? NaN), s.face ? 1 : 0, s.hasCaptureTime ? 1 : 0,
     ].join(',')),
   ];
   return `${lines.join('\n')}\n`;
