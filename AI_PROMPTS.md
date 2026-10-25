@@ -1,7 +1,6 @@
 # AI Prompts
 
-Every prompt sent to AI tools during development, in order. Short prompts
-were lightly edited for spelling and clarity.
+Every prompt sent to AI tools during development, in order.
 
 AI tools used: Claude Code, Claude.
 
