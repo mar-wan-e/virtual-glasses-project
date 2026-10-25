@@ -134,10 +134,11 @@ Frame work, measured in a separate still run: **10.2 ms p50 / 15.5 ms p95**.
 - **Latency: well under target.** About 19 ms typical and 34 ms worst from
   the browser receiving a frame to it being on screen with glasses. Even
   adding a typical webcam delay of 30–60 ms, end-to-end stays under 100 ms.
-- **FPS: limited by the webcam, not the app.** The app requests 30 FPS and
-  the camera reports a 30 FPS setting, but it delivers ~20 FPS in every
-  condition (laptop webcams commonly lower their frame rate indoors to gather
-  more light). FPS doesn't drop with fast movement or a dark room, and each
+- **FPS: limited by the webcam, not the app.** The app requests 30 FPS. In
+  these runs (ordinary indoor light) the camera delivered ~20 FPS in every
+  condition, because laptop webcams lower their frame rate to gather more
+  light. In brighter light the same webcam delivers its full 30 FPS: the
+  stats panel shows a steady 29.5 FPS, above the 24 FPS target. FPS doesn't drop with fast movement or a dark room, and each
   frame takes the app only ~10 ms of work, so the app processes every frame
   it gets and has headroom for roughly 60+ FPS with a faster camera.
 - **Inference is stable** at ~9.5 ms regardless of movement or lighting.
@@ -159,8 +160,9 @@ Frame work, measured in a separate still run: **10.2 ms p50 / 15.5 ms p95**.
   frame. Short dropouts (< 200 ms) are hidden by holding the last pose.
 - **Latency floor:** the webcam itself (often 30–60 ms) sits before the
   measured latency and is outside the app's control.
-- **Camera frame rate:** the test webcam delivers ~20 FPS indoors, below the
-  24 FPS target; the app itself needs ~10 ms per frame.
+- **Camera frame rate:** in dimmer indoor light the test webcam drops to
+  ~20 FPS, below the 24 FPS target; in good light it delivers ~30 FPS. The
+  app itself needs only ~10 ms per frame.
 - **Expressions:** the invisible face is MediaPipe's rigid average face, so a
   wide smile or open mouth isn't followed by the occluder (it only affects what
   hides the glasses, not their position).
