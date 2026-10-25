@@ -6,10 +6,7 @@ Landmarker for face tracking and Three.js for rendering. Everything runs on
 your device: no server, no uploads.
 
 - **Live demo:** https://mar-wan-e.github.io/virtual-glasses-project/ (use desktop Chrome; allow the camera)
-- **Demo video:** TODO(you): link
 - **AI prompts used:** [AI_PROMPTS.md](AI_PROMPTS.md)
-
-> TODO(you): add a screenshot or GIF here.
 
 ## Features
 
@@ -167,7 +164,6 @@ Frame work, measured in a separate still run: **10.2 ms p50 / 15.5 ms p95**.
 - **Expressions:** the invisible face is MediaPipe's rigid average face, so a
   wide smile or open mouth isn't followed by the occluder (it only affects what
   hides the glasses, not their position).
-- TODO(you): anything else you noticed while testing.
 
 ## AI tools used
 
@@ -178,10 +174,6 @@ This project was built with AI assistance, as the brief allows:
 - **Claude** (Anthropic): planning and the PRD.
 
 Every prompt is in [AI_PROMPTS.md](AI_PROMPTS.md).
-
-TODO(you): in your own words, what you decided, tested and corrected. For
-example: the per-face fitting, the arm and ear behaviour, and the smoothing
-tuning came from your testing on your own webcam.
 
 ## Credits and licences
 
