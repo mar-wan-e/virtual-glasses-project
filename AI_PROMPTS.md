@@ -1,6 +1,7 @@
 # AI Prompts
 
-Every prompt sent to AI tools during development, in order.
+Every prompt sent to AI tools during development, in order. Short prompts
+were lightly edited for spelling and clarity.
 
 AI tools used: Claude Code, Claude.
 
@@ -43,7 +44,7 @@ and no-face states with on-screen messages.
 ### Prompt 3 (Claude Code)
 
 ```
-how do i get the 3glb glasses models and 3 transpparentspgns
+how do I get the 3glb glasses models and 3 transparent pngs
 ```
 
 (Claude Code explained how to find CC-licensed GLBs on Sketchfab; after I
@@ -105,11 +106,11 @@ models.
 ### Prompt 7 (Claude Code)
 
 ```
-what does shimmering mean and they dont keep up at the fastest speed
+what does shimmering mean, and the glasses dont keep up at the fastest speed
 ```
 
 ```
-if i move my head fast beta sitll not enough
+if i move my head fast beta maxed out isn't enough to make it stay on my face. consider locking on specific points of my face like my eye corners.
 ```
 
 (Claude Code widened the minCutoff/beta slider ranges, then found the trailing
@@ -120,11 +121,11 @@ onto a canvas in the same step as the glasses, so they stay in sync.)
 ### Prompt 8 (Claude Code)
 
 ```
-how much should occluder width to
+how much should occluder width be set to
 ```
 
 ```
-the only issue is that the ear it isnt on the ear
+All errors have been fixed but the ear. It isn't set correctly
 ```
 
 (Claude Code explained how to tune occluder width, then added per-design
@@ -143,7 +144,7 @@ ear x/y/z sliders, so the end of each temple arm is hidden behind the ear.)
 ### Prompt 10 (Claude Code)
 
 ```
-its still unrealistic
+its still unrealistic.
 ```
 
 (Answered a multiple-choice question: "Moves wrong" and "Wrong size or
@@ -154,7 +155,7 @@ landmark 168, before smoothing. P toggles it for comparison.)
 ### Prompt 11 (Claude Code)
 
 ```
-thing is it needs to be dynamic ykwim itneeds to change for everyones face
+thing is it needs to be dynamic. It needs to change for everyones face
 ```
 
 (Claude Code split "model" tuning from "face" fitting: glasses.js now only
@@ -182,7 +183,7 @@ re-fitting every frame caused dropouts, so the face width now locks after
 ### Prompt 13 (Claude Code)
 
 ```
-okay rn the issue is when i look down the arms dont go down and tilt ykwim? like they go to the top of my head
+The issue currently is when i look down the arms dont go down and tilt, they go to the top of my head making it seem unrealistic.
 ```
 
 (Claude Code: the invisible head was 15% too narrow, so arms showed over the
@@ -193,7 +194,7 @@ than before) and the last 2.5 cm curves down 40 degrees behind the ear.)
 ### Prompt 14 (Claude Code)
 
 ```
-everything is great but the it dodenst hook behind my ear
+everything is great - but again it doesn't hook behind my ear
 ```
 
 (Answered a multiple-choice question: "Ends at the ear, no curve". Claude Code
@@ -207,7 +208,7 @@ on each person's ears.)
 ### Prompt 15 (Claude Code)
 
 ```
-where are we now compared to what they wanted us to reach. theres phase 5 left, but what else do we need
+where are we now compared to the goal we need to reach. theres phase 5 left, but what else do we need
 ```
 
 ### Prompt 16 (Claude Code)
@@ -228,7 +229,7 @@ performance results table (leave numbers for me), limitations, AI tools used.
 ### Prompt 17 (Claude Code)
 
 ```
-some changes in glasses number 2 and 3, they have different dimensions so they dont tuck behind the ea
+some changes to be made in glasses number 2 and 3, they have different dimensions so they dont tuck behind the ear.
 ```
 
 (Claude Code measured each model's arm from the side: all three already hook
