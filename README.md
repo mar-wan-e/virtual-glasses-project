@@ -6,6 +6,7 @@ Landmarker for face tracking and Three.js for rendering. Everything runs on
 your device: no server, no uploads.
 
 - **Live demo:** https://mar-wan-e.github.io/virtual-glasses-project/ (use desktop Chrome; allow the camera)
+- **Demo video:** https://drive.google.com/file/d/1jNW2Dyhhnvo-u6HQf9J4wYBTMBGJCHb-/view?usp=sharing
 - **AI prompts used:** [AI_PROMPTS.md](AI_PROMPTS.md)
 
 ## Features
