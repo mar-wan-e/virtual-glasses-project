@@ -243,6 +243,7 @@ const TIP_BLEND = 1.6;
 const HOOK_DROP = 0.4;
 // How far (cm) the hook tucks inward toward the head by its end, so the tip
 // ends inside the invisible head instead of poking out behind the ear.
+// A design can override it with `hookTuck` (glasses.js).
 const HOOK_TUCK = 1.2;
 // Distance (cm) behind the lenses where the arm starts (the hinge), and how
 // far behind the hinge the bend blends in, so there's no kink at the hinge.
@@ -462,7 +463,7 @@ function aimArms({ fit, design }) {
       //    tips wrap behind the ear), so its end goes inside the invisible
       //    head and can't poke out behind the ear, however long the hook is.
       const tuck = THREE.MathUtils.smoothstep(along, side.hookStart, side.hookEnd);
-      if (tuck > 0) _u.x -= side.side * HOOK_TUCK * tuck;
+      if (tuck > 0) _u.x -= side.side * (design.hookTuck ?? HOOK_TUCK) * tuck;
       // 4. Blend by w near the hinge, so the frame front isn't kinked.
       _v.lerp(_u, w).applyMatrix4(_mInv);
       pos.setXYZ(i, _v.x, _v.y, _v.z);

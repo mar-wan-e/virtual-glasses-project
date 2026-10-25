@@ -71,6 +71,8 @@ export const OCCLUDER = { z: -0.3, width: 1.0, ear: { x: 8.2, y: 1.0, z: -4.0 } 
  * @property {number} armLength - the arms are bent automatically to reach the
  *   wearer's ears (renderer3d.js aimArms); this fine-tunes how far past the
  *   ear they go. 1 = default.
+ * @property {number} [hookTuck] - how far (cm) the arm's end tucks in toward
+ *   the head behind the ear (default 1.2, renderer3d.js HOOK_TUCK).
  *
  * Lenses:
  * @property {string} lensColor   - tint, CSS colour
@@ -90,6 +92,7 @@ export const GLASSES = [
     offset3d: { x: 0, y: 2.7, z: 6.0 },
     rotation3d: { x: 0, y: 0, z: 0 },
     armLength: 1,
+    hookTuck: 0.5, // short hook: a small tuck keeps the tip behind the ear
     lensColor: '#d6e4ee', // clear optical lens, faint blue coating
     lensOpacity: 0.2,
   },

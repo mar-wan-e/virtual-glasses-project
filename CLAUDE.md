@@ -146,7 +146,7 @@ from `import.meta.env.BASE_URL`, never hard-coded as `/models/...`.
   landmark 356 + 0.25 cm); only the straight part is stretched so the hook
   starts TIP_LEAD 0.8 cm before the ear top (bend visible, rest hidden by
   the invisible ear); the hook keeps the model's shape, but tucks up to
-  HOOK_TUCK 1.2 cm inward toward the head by its end so long hooks (glasses-3)
+  HOOK_TUCK 1.2 cm (per-design `hookTuck`; glasses-1 uses 0.5, more pushes its short tip into the gap between ear and head) inward toward the head by its end so long hooks (glasses-3)
   end inside the invisible head instead of poking out behind the ear. Models without a
   hook get a 55 deg added curve.
   Occluder is full head width (1.0) so the head
